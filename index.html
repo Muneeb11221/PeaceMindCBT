@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#E3F2FD" />
+  <title>PeaceMind</title>
+  <meta name="description" content="A specialized CBT companion app for mental wellness." />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <!-- Feather Icons -->
+  <script src="https://unpkg.com/feather-icons"></script>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <button id="settings-btn" aria-label="Settings"><i data-feather="settings"></i></button>
+        <h1>PeaceMind</h1>
+      </div>
+      <button id="sos-btn" class="sos-button">SOS</button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+      
+      <!-- Chat View -->
+      <section id="view-chat" class="view active">
+        <div class="disclaimer">
+          <i data-feather="shield"></i>
+          <p><strong>Peer-Support Tool:</strong> I am an AI companion, not a medical professional. I cannot provide diagnoses or prescriptions.</p>
+        </div>
+        <div id="chat-history" class="chat-history">
+          <!-- Messages will be injected here -->
+        </div>
+        <div class="chat-input-area">
+          <form id="chat-form">
+            <textarea id="chat-input" placeholder="How are you feeling right now?" rows="1"></textarea>
+            <button type="submit" id="send-btn" aria-label="Send"><i data-feather="send"></i></button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Mood History View -->
+      <section id="view-mood" class="view hidden">
+        <div class="view-header">
+          <h2>Mood Tracker</h2>
+          <p class="subtitle">Log your current mood to track patterns over time.</p>
+        </div>
+        <div class="mood-logger">
+          <div class="mood-emojis">
+            <button class="mood-btn" data-mood="Terrible">😭</button>
+            <button class="mood-btn" data-mood="Bad">🙁</button>
+            <button class="mood-btn" data-mood="Okay">😐</button>
+            <button class="mood-btn" data-mood="Good">🙂</button>
+            <button class="mood-btn" data-mood="Great">😁</button>
+          </div>
+          <textarea id="mood-note" placeholder="Add a note (optional)..."></textarea>
+          <button id="save-mood-btn" class="primary-button">Log Mood</button>
+        </div>
+        <div id="mood-list" class="mood-list">
+          <!-- Past moods injected here -->
+        </div>
+      </section>
+
+      <!-- Homework View -->
+      <section id="view-homework" class="view hidden">
+        <div class="view-header">
+          <h2>CBT Homework</h2>
+          <p class="subtitle">Reflect on your thoughts and practice reframing.</p>
+        </div>
+        <div class="homework-entry">
+          <form id="homework-form">
+            <label for="hw-situation">Situation:</label>
+            <textarea id="hw-situation" placeholder="What happened?"></textarea>
+            
+            <label for="hw-thought">Automatic Thought:</label>
+            <textarea id="hw-thought" placeholder="What crossed your mind?"></textarea>
+            
+            <label for="hw-reframe">Alternative Thought (Reframing):</label>
+            <textarea id="hw-reframe" placeholder="How else can you look at this?"></textarea>
+            
+            <button type="submit" class="primary-button">Save Reflection</button>
+          </form>
+        </div>
+        <div id="homework-list" class="homework-list">
+          <!-- Past homework injected here -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-target="view-chat">
+        <i data-feather="message-circle"></i>
+        <span>Chat</span>
+      </button>
+      <button class="nav-btn" data-target="view-mood">
+        <i data-feather="bar-chart-2"></i>
+        <span>Mood</span>
+      </button>
+      <button class="nav-btn" data-target="view-homework">
+        <i data-feather="book-open"></i>
+        <span>Homework</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button id="close-settings-btn" class="close-btn"><i data-feather="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <label for="api-key-input">Gemini API Key</label>
+        <p class="help-text">Your API key is stored locally on your device.</p>
+        <input type="password" id="api-key-input" placeholder="AIzaSy..." />
+        <button id="save-settings-btn" class="primary-button">Save Key</button>
+        
+        <hr />
+        <button id="clear-data-btn" class="danger-button">Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOS Modal -->
+  <div id="sos-modal" class="modal hidden">
+    <div class="modal-content sos-content">
+      <div class="modal-header">
+        <h2 class="sos-title">Emergency Resources</h2>
+        <button id="close-sos-btn" class="close-btn"><i data-feather="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p>If you or someone you know is in crisis, please reach out for help immediately.</p>
+        <div class="resource-card">
+          <h3>988 Suicide & Crisis Lifeline</h3>
+          <p>Call or text <strong>988</strong></p>
+          <a href="tel:988" class="sos-action-btn">Call Now</a>
+        </div>
+        <div class="resource-card">
+          <h3>Crisis Text Line</h3>
+          <p>Text HOME to <strong>741741</strong></p>
+          <a href="sms:741741" class="sos-action-btn">Text Now</a>
+        </div>
+        <div class="resource-card">
+          <h3>Emergency Services</h3>
+          <p>Call <strong>911</strong> or go to your nearest emergency room.</p>
+          <a href="tel:911" class="sos-action-btn">Call 911</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="./js/storage.js"></script>
+  <script src="./js/safety.js"></script>
+  <script src="./js/ai.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
