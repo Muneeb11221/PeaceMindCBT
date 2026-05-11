@@ -170,6 +170,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Handle Enter to send, Shift+Enter for new line
+  chatInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // On mobile devices (touch pointer or small screen), we preserve native 
+      // Enter-for-newline behavior as Shift+Enter is less accessible.
+      const isMobile = window.matchMedia("(max-width: 768px)").matches || 
+                       window.matchMedia("(pointer: coarse)").matches;
+      
+      if (!isMobile) {
+        const text = this.value.trim();
+        if (text) {
+          e.preventDefault();
+          chatForm.requestSubmit();
+        } else {
+          // Prevent default to avoid unnecessary newlines when sending empty text
+          e.preventDefault();
+        }
+      }
+    }
+  });
+
   // Auto-resize textarea
   chatInput.addEventListener('input', function () {
     this.style.height = 'auto';
