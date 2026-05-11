@@ -8,8 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingsBtn = document.getElementById('settings-btn');
   const settingsModal = document.getElementById('settings-modal');
   const closeSettingsBtn = document.getElementById('close-settings-btn');
-  const saveSettingsBtn = document.getElementById('save-settings-btn');
-  const apiKeyInput = document.getElementById('api-key-input');
   const clearDataBtn = document.getElementById('clear-data-btn');
 
   const sosBtn = document.getElementById('sos-btn');
@@ -38,19 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initApp();
 
   function initApp() {
-    // Load API Key
-    const apiKey = StorageService.get(StorageService.KEYS.API_KEY, '');
-    apiKeyInput.value = apiKey;
-
     // Render Data
     renderChatHistory();
     renderMoodHistory();
     renderHomework();
 
-    // Check if API key is missing to prompt user
-    if (!apiKey) {
-      settingsModal.classList.remove('hidden');
-    }
+    checkInitialGreeting();
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
@@ -61,6 +52,32 @@ document.addEventListener('DOMContentLoaded', () => {
           console.log('SW registration failed: ', registrationError);
         });
       });
+    }
+  }
+
+  async function checkInitialGreeting() {
+    const history = StorageService.getChatHistory();
+    if (history.length === 0) {
+      sendBtn.disabled = true;
+      try {
+        const loadingId = 'loading-' + Date.now();
+        const loadingHTML = `<div id="${loadingId}" class="message ai">Thinking...</div>`;
+        chatHistoryEl.insertAdjacentHTML('beforeend', loadingHTML);
+        scrollToBottom();
+
+        const promptHistory = [{ role: 'user', content: 'Generate a professional therapist greeting and an initial intake question' }];
+        const aiResponse = await AIEngine.sendMessage(promptHistory);
+
+        document.getElementById(loadingId)?.remove();
+
+        const aiMsg = StorageService.addChatMessage('ai', aiResponse);
+        appendMessage(aiMsg);
+      } catch (error) {
+        document.getElementById('loading-' + Date.now())?.remove();
+        console.error("Failed to generate initial greeting:", error);
+      } finally {
+        sendBtn.disabled = false;
+      }
     }
   }
 
@@ -77,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetId = btn.getAttribute('data-target');
       document.getElementById(targetId).classList.remove('hidden');
       document.getElementById(targetId).classList.add('active');
-      
+
       if (targetId === 'view-chat') {
         scrollToBottom();
       }
@@ -87,20 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Settings Modal
   settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
   closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
-  
-  saveSettingsBtn.addEventListener('click', () => {
-    StorageService.set(StorageService.KEYS.API_KEY, apiKeyInput.value.trim());
-    settingsModal.classList.add('hidden');
-    // alert('Settings saved successfully.');
-  });
 
   clearDataBtn.addEventListener('click', () => {
-    if(confirm("Are you sure you want to clear all history? This cannot be undone.")) {
+    if (confirm("Are you sure you want to clear all history? This cannot be undone.")) {
       StorageService.clearAllData();
       renderChatHistory();
       renderMoodHistory();
       renderHomework();
       settingsModal.classList.add('hidden');
+
+      checkInitialGreeting();
     }
   });
 
@@ -131,24 +144,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Call AI
-    const apiKey = StorageService.get(StorageService.KEYS.API_KEY);
-    if (!apiKey) {
-      const err = StorageService.addChatMessage('system', 'Please configure your API key in settings.');
-      appendMessage(err);
-      settingsModal.classList.remove('hidden');
-      sendBtn.disabled = false;
-      return;
-    }
-
     try {
       // Show loading placeholder
       const loadingId = 'loading-' + Date.now();
-      const loadingHTML = \`<div id="\${loadingId}" class="message ai">Thinking...</div>\`;
+      const loadingHTML = `<div id="${loadingId}" class="message ai">Thinking...</div>`;
       chatHistoryEl.insertAdjacentHTML('beforeend', loadingHTML);
       scrollToBottom();
 
       const history = StorageService.getChatHistory(); // includes the user message just sent
-      const aiResponse = await AIEngine.sendMessage(apiKey, history);
+      const aiResponse = await AIEngine.sendMessage(history);
 
       // Remove loading
       document.getElementById(loadingId).remove();
@@ -167,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Auto-resize textarea
-  chatInput.addEventListener('input', function() {
+  chatInput.addEventListener('input', function () {
     this.style.height = 'auto';
     this.style.height = (this.scrollHeight) + 'px';
   });
@@ -181,13 +185,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function appendMessage(msg) {
     const div = document.createElement('div');
-    div.className = \`message \${msg.role}\`;
-    
+    div.className = `message ${msg.role}`;
+
     // Convert markdown-style newlines and basic bold to HTML for simple rendering
     let htmlContent = msg.content
       .replace(/\\n/g, '<br>')
       .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
-      
+
     div.innerHTML = htmlContent;
     chatHistoryEl.appendChild(div);
     scrollToBottom();
@@ -215,12 +219,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const note = moodNote.value.trim();
     StorageService.addMoodLog(currentMood, note);
-    
+
     // Reset
     currentMood = null;
     moodBtns.forEach(b => b.classList.remove('selected'));
     moodNote.value = '';
-    
+
     renderMoodHistory();
   });
 
@@ -236,11 +240,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const date = new Date(log.timestamp).toLocaleString();
       const div = document.createElement('div');
       div.className = 'log-card';
-      div.innerHTML = \`
-        <div class="date">\${date}</div>
-        <h4>Mood: \${log.mood}</h4>
-        \${log.note ? \`<p>\${log.note}</p>\` : ''}
-      \`;
+      div.innerHTML = `
+        <div class="date">${date}</div>
+        <h4>Mood: ${log.mood}</h4>
+        ${log.note ? `<p>${log.note}</p>` : ''}
+      `;
       moodListEl.appendChild(div);
     });
   }
@@ -258,12 +262,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     StorageService.addHomework(situation, thought, reframe);
-    
+
     // Reset
     hwSituation.value = '';
     hwThought.value = '';
     hwReframe.value = '';
-    
+
     renderHomework();
   });
 
@@ -279,12 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const date = new Date(hw.timestamp).toLocaleString();
       const div = document.createElement('div');
       div.className = 'log-card';
-      div.innerHTML = \`
-        <div class="date">\${date}</div>
-        <h4>Situation</h4><p>\${hw.situation}</p><br/>
-        <h4>Automatic Thought</h4><p>\${hw.thought}</p><br/>
-        <h4>Reframe</h4><p>\${hw.reframe}</p>
-      \`;
+      div.innerHTML = `
+        <div class="date">${date}</div>
+        <h4>Situation</h4><p>${hw.situation}</p><br/>
+        <h4>Automatic Thought</h4><p>${hw.thought}</p><br/>
+        <h4>Reframe</h4><p>${hw.reframe}</p>
+      `;
       homeworkListEl.appendChild(div);
     });
   }
