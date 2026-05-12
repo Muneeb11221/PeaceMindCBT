@@ -51,7 +51,7 @@ This version has been **refactored for production**, featuring enterprise-grade 
 ## 🏗️ Architecture
 
 ```
-peacemind-ai-cbt/
+PeaceMindCBT/
 ├── index.html              # Hardened app shell (SPA)
 ├── style.css               # Modernized stylesheet with transitions
 ├── manifest.json           # PWA manifest
@@ -77,8 +77,8 @@ peacemind-ai-cbt/
 
 ### 1. Installation
 ```bash
-git clone https://github.com/Muneeb11221/peacemind-ai-cbt.git
-cd peacemind-ai-cbt/server
+git clone https://github.com/Muneeb11221/PeaceMindCBT.git
+cd PeaceMindCBT/server
 npm install
 ```
 
