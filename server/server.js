@@ -341,7 +341,6 @@ async function generateWithOpenRouter(history) {
                 body: JSON.stringify({
                     model: model,
                     messages: messages,
-                    max_tokens: 1500,
                     temperature: 0.6
                 })
             });
@@ -413,7 +412,6 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
             const result = await model.generateContent({
                 contents,
                 generationConfig: {
-                    maxOutputTokens: 1500,
                     temperature: 0.6
                 }
             });
