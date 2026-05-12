@@ -327,6 +327,23 @@ textarea:focus { border-color: var(--color-primary); }
   background-color: #FEF2F2;
 }
 
+.retry-btn {
+  background-color: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background-color: var(--color-primary-hover);
+}
+
 .mood-list, .homework-list {
   padding: 20px;
   display: flex;
@@ -395,6 +412,31 @@ textarea:focus { border-color: var(--color-primary); }
   font-weight: 500;
 }
 
+/* Typing/Loading Indicator */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0;
+  align-items: center;
+}
+
+.typing-indicator span {
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-text-muted);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+  opacity: 0.6;
+}
+
+.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1.0); }
+}
+
 /* Modals */
 .modal {
   position: absolute;
@@ -409,11 +451,11 @@ textarea:focus { border-color: var(--color-primary); }
   z-index: 50;
   backdrop-filter: blur(4px);
   opacity: 1;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s, visibility 0.3s;
 }
 
 .modal.hidden {
-  display: none;
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
 }
@@ -467,14 +509,6 @@ textarea:focus { border-color: var(--color-primary); }
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-bottom: 12px;
-}
-#api-key-input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  margin-bottom: 20px;
-  font-family: monospace;
 }
 
 .resource-card {

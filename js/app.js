@@ -32,24 +32,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentMood = null;
 
-  // Setup Initial State
+  // ======================================================================
+  // SAFE RENDERING UTILITIES
+  // ======================================================================
+
+  function stripHTML(str) {
+    if (!str) return '';
+    const temp = document.createElement('div');
+    temp.textContent = str;
+    return temp.innerHTML;
+  }
+
+  function safeMarkdown(text) {
+    if (!text) return '';
+    let safe = stripHTML(text);
+    safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    safe = safe.replace(/\n/g, '<br>');
+    return safe;
+  }
+
+  function createMessageElement(msg) {
+    const div = document.createElement('div');
+    div.className = `message ${msg.role}`;
+
+    if (msg.role === 'ai') {
+      div.innerHTML = safeMarkdown(msg.content);
+    } else if (msg.role === 'system') {
+      // System messages might contain buttons (like Retry)
+      div.innerHTML = msg.content;
+    } else {
+      div.textContent = msg.content;
+    }
+
+    return div;
+  }
+
+  /**
+   * Creates the animated loading indicator element.
+   */
+  function createLoadingIndicator(id) {
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = 'message ai';
+    
+    const indicator = document.createElement('div');
+    indicator.className = 'typing-indicator';
+    indicator.innerHTML = '<span></span><span></span><span></span>';
+    
+    div.appendChild(indicator);
+    return div;
+  }
+
+  // ======================================================================
+  // APP INITIALIZATION
+  // ======================================================================
+
   initApp();
 
   function initApp() {
-    // Render Data
     renderChatHistory();
     renderMoodHistory();
     renderHomework();
-
     checkInitialGreeting();
 
-    // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(registration => {
-          console.log('SW registered: ', registration);
-        }).catch(registrationError => {
-          console.log('SW registration failed: ', registrationError);
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.log('SW registration failed: ', err);
         });
       });
     }
@@ -58,42 +107,25 @@ document.addEventListener('DOMContentLoaded', () => {
   async function checkInitialGreeting() {
     const history = StorageService.getChatHistory();
     if (history.length === 0) {
-      sendBtn.disabled = true;
-      try {
-        const loadingId = 'loading-' + Date.now();
-        const loadingHTML = `<div id="${loadingId}" class="message ai">Thinking...</div>`;
-        chatHistoryEl.insertAdjacentHTML('beforeend', loadingHTML);
-        scrollToBottom();
-
-        const promptHistory = [{ role: 'user', content: 'Generate a professional therapist greeting and an initial intake question' }];
-        const aiResponse = await AIEngine.sendMessage(promptHistory);
-
-        document.getElementById(loadingId)?.remove();
-
-        const aiMsg = StorageService.addChatMessage('ai', aiResponse);
-        appendMessage(aiMsg);
-      } catch (error) {
-        document.getElementById('loading-' + Date.now())?.remove();
-        console.error("Failed to generate initial greeting:", error);
-      } finally {
-        sendBtn.disabled = false;
-      }
+      handleSendMessage([{ role: 'user', content: 'Generate a professional therapist greeting and an initial intake question' }], true);
     }
   }
 
-  // Navigation
+  // ======================================================================
+  // NAVIGATION
+  // ======================================================================
+
   navBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      // Remove active from all
       navBtns.forEach(b => b.classList.remove('active'));
       views.forEach(v => v.classList.remove('active', 'hidden'));
       views.forEach(v => v.classList.add('hidden'));
 
-      // Add active to clicked
       btn.classList.add('active');
       const targetId = btn.getAttribute('data-target');
-      document.getElementById(targetId).classList.remove('hidden');
-      document.getElementById(targetId).classList.add('active');
+      const targetView = document.getElementById(targetId);
+      targetView.classList.remove('hidden');
+      targetView.classList.add('active');
 
       if (targetId === 'view-chat') {
         scrollToBottom();
@@ -101,7 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Settings Modal
+  // ======================================================================
+  // MODALS
+  // ======================================================================
+
   settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
   closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
 
@@ -112,30 +147,29 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMoodHistory();
       renderHomework();
       settingsModal.classList.add('hidden');
-
       checkInitialGreeting();
     }
   });
 
-  // SOS Modal
   sosBtn.addEventListener('click', () => sosModal.classList.remove('hidden'));
   closeSosBtn.addEventListener('click', () => sosModal.classList.add('hidden'));
 
-  // Chat Logic
+  // ======================================================================
+  // CHAT LOGIC
+  // ======================================================================
+
   chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = chatInput.value.trim();
     if (!text) return;
 
     chatInput.value = '';
-    chatInput.style.height = 'auto'; // reset textarea height
+    chatInput.style.height = 'auto';
     sendBtn.disabled = true;
 
-    // Add user message to UI & storage
     const userMsg = StorageService.addChatMessage('user', text);
     appendMessage(userMsg);
 
-    // Safety Check
     if (SafetyEngine.isCrisis(text)) {
       const sysMsg = StorageService.addChatMessage('system', SafetyEngine.CRISIS_MESSAGE);
       appendMessage(sysMsg);
@@ -143,55 +177,72 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Call AI
+    handleSendMessage(StorageService.getChatHistory());
+  });
+
+  /**
+   * Main AI communication handler with error recovery.
+   */
+  async function handleSendMessage(history, isInitial = false) {
+    const loadingId = 'loading-' + Date.now();
+    sendBtn.disabled = true;
+
     try {
-      // Show loading placeholder
-      const loadingId = 'loading-' + Date.now();
-      const loadingHTML = `<div id="${loadingId}" class="message ai">Thinking...</div>`;
-      chatHistoryEl.insertAdjacentHTML('beforeend', loadingHTML);
+      const loadingEl = createLoadingIndicator(loadingId);
+      chatHistoryEl.appendChild(loadingEl);
       scrollToBottom();
 
-      const history = StorageService.getChatHistory(); // includes the user message just sent
       const aiResponse = await AIEngine.sendMessage(history);
 
-      // Remove loading
-      document.getElementById(loadingId).remove();
+      document.getElementById(loadingId)?.remove();
 
-      // Add AI response
       const aiMsg = StorageService.addChatMessage('ai', aiResponse);
       appendMessage(aiMsg);
     } catch (error) {
-      document.getElementById('loading-' + Date.now())?.remove();
-      const err = StorageService.addChatMessage('system', 'Error: ' + error.message);
-      appendMessage(err);
-    } finally {
-      sendBtn.disabled = false;
-      chatInput.focus();
-    }
-  });
+      document.getElementById(loadingId)?.remove();
+      
+      const errorText = navigator.onLine ? 
+        'Something went wrong. Please check your connection and try again.' : 
+        'You appear to be offline. Please reconnect to continue.';
+      
+      const sysMsg = {
+        role: 'system',
+        content: `${errorText} <button class="retry-btn" id="retry-${loadingId}">Retry</button>`
+      };
+      
+      appendMessage(sysMsg);
 
-  // Handle Enter to send, Shift+Enter for new line
+      // Add event listener for the retry button
+      document.getElementById(`retry-${loadingId}`)?.addEventListener('click', (e) => {
+        e.target.parentElement.remove(); // Remove error message
+        handleSendMessage(history, isInitial);
+      });
+    } finally {
+      if (!isInitial) {
+        sendBtn.disabled = false;
+        chatInput.focus();
+      } else {
+        sendBtn.disabled = false;
+      }
+    }
+  }
+
   chatInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) {
-      // On mobile devices (touch pointer or small screen), we preserve native 
-      // Enter-for-newline behavior as Shift+Enter is less accessible.
       const isMobile = window.matchMedia("(max-width: 768px)").matches || 
                        window.matchMedia("(pointer: coarse)").matches;
-      
       if (!isMobile) {
         const text = this.value.trim();
         if (text) {
           e.preventDefault();
           chatForm.requestSubmit();
         } else {
-          // Prevent default to avoid unnecessary newlines when sending empty text
           e.preventDefault();
         }
       }
     }
   });
 
-  // Auto-resize textarea
   chatInput.addEventListener('input', function () {
     this.style.height = 'auto';
     this.style.height = (this.scrollHeight) + 'px';
@@ -199,22 +250,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderChatHistory() {
     chatHistoryEl.innerHTML = '';
-    const history = StorageService.getChatHistory();
-    history.forEach(appendMessage);
+    StorageService.getChatHistory().forEach(appendMessage);
     scrollToBottom();
   }
 
   function appendMessage(msg) {
-    const div = document.createElement('div');
-    div.className = `message ${msg.role}`;
-
-    // Convert markdown-style newlines and basic bold to HTML for simple rendering
-    let htmlContent = msg.content
-      .replace(/\\n/g, '<br>')
-      .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
-
-    div.innerHTML = htmlContent;
-    chatHistoryEl.appendChild(div);
+    const el = createMessageElement(msg);
+    chatHistoryEl.appendChild(el);
     scrollToBottom();
   }
 
@@ -224,7 +266,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 50);
   }
 
-  // Mood Logic
+  // ======================================================================
+  // MOOD LOGIC
+  // ======================================================================
+
   moodBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       moodBtns.forEach(b => b.classList.remove('selected'));
@@ -238,14 +283,10 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Please select a mood emoji.');
       return;
     }
-    const note = moodNote.value.trim();
-    StorageService.addMoodLog(currentMood, note);
-
-    // Reset
+    StorageService.addMoodLog(currentMood, moodNote.value.trim());
     currentMood = null;
     moodBtns.forEach(b => b.classList.remove('selected'));
     moodNote.value = '';
-
     renderMoodHistory();
   });
 
@@ -253,24 +294,29 @@ document.addEventListener('DOMContentLoaded', () => {
     moodListEl.innerHTML = '';
     const logs = StorageService.getMoodLogs();
     if (logs.length === 0) {
-      moodListEl.innerHTML = '<p class="subtitle text-center">No moods logged yet.</p>';
+      const p = document.createElement('p');
+      p.className = 'subtitle text-center';
+      p.textContent = 'No moods logged yet.';
+      moodListEl.appendChild(p);
       return;
     }
 
     logs.forEach(log => {
-      const date = new Date(log.timestamp).toLocaleString();
       const div = document.createElement('div');
       div.className = 'log-card';
       div.innerHTML = `
-        <div class="date">${date}</div>
-        <h4>Mood: ${log.mood}</h4>
-        ${log.note ? `<p>${log.note}</p>` : ''}
+        <div class="date">${new Date(log.timestamp).toLocaleString()}</div>
+        <h4>Mood: ${stripHTML(log.mood)}</h4>
+        ${log.note ? `<p>${stripHTML(log.note)}</p>` : ''}
       `;
       moodListEl.appendChild(div);
     });
   }
 
-  // Homework Logic
+  // ======================================================================
+  // HOMEWORK LOGIC
+  // ======================================================================
+
   homeworkForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const situation = hwSituation.value.trim();
@@ -283,12 +329,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     StorageService.addHomework(situation, thought, reframe);
-
-    // Reset
     hwSituation.value = '';
     hwThought.value = '';
     hwReframe.value = '';
-
     renderHomework();
   });
 
@@ -296,19 +339,21 @@ document.addEventListener('DOMContentLoaded', () => {
     homeworkListEl.innerHTML = '';
     const hwList = StorageService.getHomework();
     if (hwList.length === 0) {
-      homeworkListEl.innerHTML = '<p class="subtitle text-center">No homework completed yet.</p>';
+      const p = document.createElement('p');
+      p.className = 'subtitle text-center';
+      p.textContent = 'No homework completed yet.';
+      homeworkListEl.appendChild(p);
       return;
     }
 
     hwList.forEach(hw => {
-      const date = new Date(hw.timestamp).toLocaleString();
       const div = document.createElement('div');
       div.className = 'log-card';
       div.innerHTML = `
-        <div class="date">${date}</div>
-        <h4>Situation</h4><p>${hw.situation}</p><br/>
-        <h4>Automatic Thought</h4><p>${hw.thought}</p><br/>
-        <h4>Reframe</h4><p>${hw.reframe}</p>
+        <div class="date">${new Date(hw.timestamp).toLocaleString()}</div>
+        <h4>Situation</h4><p>${stripHTML(hw.situation)}</p><br/>
+        <h4>Automatic Thought</h4><p>${stripHTML(hw.thought)}</p><br/>
+        <h4>Reframe</h4><p>${stripHTML(hw.reframe)}</p>
       `;
       homeworkListEl.appendChild(div);
     });

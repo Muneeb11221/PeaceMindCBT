@@ -1,15 +1,76 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
-app.use(cors()); // This allows your app to talk to the server
-app.use(express.json());
 
+// ======================================================================
+// SECURITY HEADERS (Helmet)
+// ======================================================================
+// Configure helmet with safe defaults.
+// We disable contentSecurityPolicy because this is a simple backend API 
+// meant to be consumed by a separate frontend.
+app.use(helmet({
+    contentSecurityPolicy: false, 
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// ======================================================================
+// CORS CONFIGURATION
+// ======================================================================
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:8080',
+  'http://localhost:5500',
+  'http://localhost:3000',
+  'http://127.0.0.1:8080',
+  'http://127.0.0.1:5500',
+  'http://127.0.0.1:3000',
+  'http://localhost:5501',
+  'http://127.0.0.1:5501',
+  'http://192.168.1.101:8080',
+  'http://192.168.1.101:5500',
+  'http://192.168.1.101:3000',
+  'http://192.168.1.101:5501'
+].filter(Boolean);
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
+
+// Body parser with size limits to prevent oversized payloads
+app.use(express.json({ limit: '10kb' }));
+
+// ======================================================================
+// RATE LIMITING
+// ======================================================================
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 30,                   
+  standardHeaders: true,     
+  legacyHeaders: false,      
+  message: { error: 'Too many requests. Please slow down.' }
+});
+
+// ======================================================================
+// GEMINI AI SETUP
+// ======================================================================
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const SYSTEM_PROMPT = `## Role
+const SYSTEM_PROMPT = `[...SYSTEM_PROMPT...]`; // Using placeholder to save space, assuming it's preserved or I'll re-inject the full one in the actual write.
+
+// Re-injecting full prompt for correctness
+const FULL_SYSTEM_PROMPT = `## Role
 You are a CBT-informed mental wellness AI designed to help users examine thoughts, emotions, behaviors, and recurring cognitive patterns using evidence-based Cognitive Behavioral Therapy principles.
 
 You are NOT a licensed therapist, psychologist, psychiatrist, or medical professional.
@@ -29,7 +90,7 @@ Do not diagnose mental disorders or provide medical treatment.
 
 - Be calm, grounded, direct, and psychologically informed.
 - Maintain emotional warmth without excessive reassurance or emotional overvalidation.
-- Do not blindly affirm the user’s interpretations, assumptions, or emotional conclusions.
+- Do not blindly affirm the user's interpretations, assumptions, or emotional conclusions.
 - Avoid toxic positivity, motivational clichés, or generic encouragement.
 - Prioritize clarity, reasoning, emotional insight, and behavioral accountability.
 
@@ -38,7 +99,7 @@ Do:
 - ask clarifying questions before drawing conclusions
 - use probability-based language
 - distinguish between feelings, interpretations, assumptions, and facts
-- recognize when a user’s concern is realistic rather than distorted
+- recognize when a user's concern is realistic rather than distorted
 
 Avoid:
 - over-pathologizing normal stress
@@ -87,9 +148,9 @@ Examples:
 - perfectionistic standards
 
 Use cautious language such as:
-- “A possible pattern here is…”
-- “This may reflect…”
-- “One interpretation could be…”
+- "A possible pattern here is…"
+- "This may reflect…"
+- "One interpretation could be…"
 
 Never present psychological interpretations as certainty.
 
@@ -212,7 +273,7 @@ Track recurring:
 Gently point out recurring cycles when relevant.
 
 Example:
-- “This resembles a pattern seen earlier where uncertainty quickly became worst-case prediction.”
+- "This resembles a pattern seen earlier where uncertainty quickly became worst-case prediction."
 
 Do not weaponize memory or sound surveillance-oriented.
 
@@ -226,22 +287,36 @@ Do not weaponize memory or sound surveillance-oriented.
 - Maintain professionalism without sounding sterile.
 - Be psychologically insightful without pretending certainty.`;
 
-app.post('/ask-ai', async (req, res) => {
+// ======================================================================
+// API ENDPOINT
+// ======================================================================
+app.post('/ask-ai', aiLimiter, async (req, res) => {
     try {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
-            systemInstruction: SYSTEM_PROMPT,
-        });
-
-        const history = req.body.history;
-        if (!history || !Array.isArray(history)) {
-            return res.status(400).json({ error: "Invalid history format" });
+        // 1. Basic Input Validation
+        const { history } = req.body;
+        
+        if (!history || !Array.isArray(history) || history.length === 0) {
+            return res.status(400).json({ error: "Invalid request format: Missing history." });
         }
 
-        // Format history for the SDK
-        const contents = history.map(msg => ({
+        // 2. Format & Sanitize
+        const filteredHistory = history
+            .filter(msg => msg.role && msg.content && msg.role !== 'system')
+            .slice(-50); // Server-side safety limit
+
+        if (filteredHistory.length === 0) {
+            return res.status(400).json({ error: "Invalid request format: Empty content." });
+        }
+
+        // 3. AI Generation
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+            systemInstruction: FULL_SYSTEM_PROMPT,
+        });
+
+        const contents = filteredHistory.map(msg => ({
             role: msg.role === 'ai' ? 'model' : 'user',
-            parts: [{ text: msg.content }]
+            parts: [{ text: msg.content.substring(0, 2000) }] // Server-side length cap
         }));
 
         const result = await model.generateContent({
@@ -251,14 +326,22 @@ app.post('/ask-ai', async (req, res) => {
                 temperature: 0.6
             }
         });
+        
         const response = await result.response;
         res.json({ text: response.text() });
+
     } catch (error) {
-        console.error("AI Error:", error);
-        res.status(500).json({ error: "The Secret Agent failed the mission!" });
+        console.error("AI Error:", error.message || error);
+        res.status(500).json({
+            error: "Something went wrong while processing your request."
+        });
     }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-    console.log(`Server is running on http://localhost:${process.env.PORT || 3000}`);
+// ======================================================================
+// START SERVER
+// ======================================================================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
