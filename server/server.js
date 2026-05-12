@@ -39,7 +39,13 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) return callback(null, true);
+    
+    const isLocal = origin.includes('localhost') || 
+                    origin.includes('127.0.0.1') || 
+                    origin.startsWith('http://192.168.');
+    
+    if (isLocal || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
