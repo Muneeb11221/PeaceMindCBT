@@ -278,20 +278,63 @@ Do not weaponize memory or sound surveillance-oriented.
 - Maintain professionalism without sounding sterile.
 - Be psychologically insightful without pretending certainty.`;
 
-// Logger middleware to help debug connectivity and CORS
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url} from ${req.headers.origin || 'No Origin'}`);
     next();
 });
 
+/**
+ * Fallback generator using OpenRouter API
+ */
+async function generateWithOpenRouter(history) {
+    if (!process.env.OPENROUTER_API_KEY) {
+        throw new Error("OpenRouter API key is missing. Cannot fallback.");
+    }
+
+    const messages = history.map(msg => ({
+        role: msg.role === 'ai' ? 'assistant' : 'user',
+        content: msg.content
+    }));
+
+    // Prepend system prompt
+    messages.unshift({
+        role: 'system',
+        content: FULL_SYSTEM_PROMPT
+    });
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://peacemind-ai-cbt.onrender.com", // Optional, for OpenRouter analytics
+            "X-Title": "PeaceMind AI"
+        },
+        body: JSON.stringify({
+            model: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free",
+            messages: messages,
+            max_tokens: 500,
+            temperature: 0.6
+        })
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`OpenRouter Error: ${errorData.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
+
 // ======================================================================
 // API ENDPOINT
 // ======================================================================
 app.post('/ask-ai', aiLimiter, async (req, res) => {
+    const { history } = req.body;
+
     try {
         // 1. Basic Input Validation
-        const { history } = req.body;
-        
         if (!history || !Array.isArray(history) || history.length === 0) {
             return res.status(400).json({ error: "Invalid request format: Missing history." });
         }
@@ -305,40 +348,55 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
             return res.status(400).json({ error: "Invalid request format: Empty content." });
         }
 
-        // 3. AI Generation
-        // Use gemini-1.5-flash as the primary stable model for now, 
-        // fallback logic can be added here if needed.
-        const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-        const model = genAI.getGenerativeModel({
-            model: modelName,
-            systemInstruction: FULL_SYSTEM_PROMPT,
-        });
+        // 3. Primary Generation: Google Gemini
+        try {
+            const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                systemInstruction: FULL_SYSTEM_PROMPT,
+            });
 
-        const contents = filteredHistory.map(msg => ({
-            role: msg.role === 'ai' ? 'model' : 'user',
-            parts: [{ text: msg.content.substring(0, 2000) }] // Server-side length cap
-        }));
+            const contents = filteredHistory.map(msg => ({
+                role: msg.role === 'ai' ? 'model' : 'user',
+                parts: [{ text: msg.content.substring(0, 2000) }]
+            }));
 
-        const result = await model.generateContent({
-            contents,
-            generationConfig: {
-                maxOutputTokens: 500,
-                temperature: 0.6
+            const result = await model.generateContent({
+                contents,
+                generationConfig: {
+                    maxOutputTokens: 500,
+                    temperature: 0.6
+                }
+            });
+            
+            const response = await result.response;
+            return res.json({ text: response.text(), engine: 'gemini' });
+
+        } catch (geminiError) {
+            // Check for Quota/Rate Limit Errors
+            const isQuotaError = geminiError.message?.includes("429") || 
+                                geminiError.message?.toLowerCase().includes("quota") ||
+                                geminiError.status === 429;
+
+            if (isQuotaError && process.env.OPENROUTER_API_KEY) {
+                console.warn(`${new Date().toISOString()} - Gemini quota exhausted. Falling back to OpenRouter.`);
+                
+                const openRouterResponse = await generateWithOpenRouter(filteredHistory);
+                return res.json({ text: openRouterResponse, engine: 'openrouter' });
             }
-        });
-        
-        const response = await result.response;
-        res.json({ text: response.text() });
+
+            // If not a quota error or no fallback key, rethrow to main catch
+            throw geminiError;
+        }
 
     } catch (error) {
         console.error("AI Error:", error.message || error);
         
-        // Provide more descriptive error messages to the client
         let errorMessage = "Something went wrong while processing your request.";
         if (error.message && error.message.includes("API key")) {
             errorMessage = "Invalid API Key. Please check your .env configuration.";
-        } else if (error.message && error.message.includes("model")) {
-            errorMessage = `Model Error: ${error.message}`;
+        } else if (error.message && (error.message.includes("model") || error.message.includes("OpenRouter"))) {
+            errorMessage = `Service Error: ${error.message}`;
         }
         
         res.status(500).json({
