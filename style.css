@@ -22,11 +22,18 @@
   padding: 0;
 }
 
+html {
+  height: -webkit-fill-available;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: var(--color-bg-primary);
   color: var(--color-text-main);
-  height: 100vh;
+  height: 100vh; /* Fallback for older browsers */
+  height: 100dvh; /* Modern solution */
+  min-height: 100dvh;
+  min-height: -webkit-fill-available; /* Fallback for iOS Safari */
   display: flex;
   justify-content: center;
   overflow: hidden;
