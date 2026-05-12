@@ -3,9 +3,9 @@ const AIEngine = {
   CONFIG: {
     // Dynamically determine the API URL based on environment
     get URL() {
-      const isLocal = window.location.hostname === 'localhost' || 
-                      window.location.hostname === '127.0.0.1' || 
-                      window.location.hostname.startsWith('192.168.');
+      const isLocal = window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname.startsWith('192.168.1.101');
       return isLocal ? 'http://localhost:3000/ask-ai' : 'https://peacemind-ai-cbt.onrender.com/ask-ai';
     },
     TIMEOUT_MS: 30000, // 30 second timeout
@@ -50,7 +50,7 @@ const AIEngine = {
         if (response.status === 429) {
           throw new Error("Too many requests. Please take a deep breath and wait a moment.");
         }
-        
+
         const err = await response.json().catch(() => ({}));
         console.error("Server Error:", err);
         throw new Error(err.error || "Something went wrong. Please try again.");
@@ -61,11 +61,11 @@ const AIEngine = {
 
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error.name === 'AbortError') {
         throw new Error("The connection timed out. Please try again.");
       }
-      
+
       throw error;
     }
   }
