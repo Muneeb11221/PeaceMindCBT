@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -350,6 +351,17 @@ async function generateWithOpenRouter(history) {
 
     throw new Error(lastError ? `All fallback models failed. Last error: ${lastError.message}` : "All fallback models failed.");
 }
+
+// ======================================================================
+// FRONTEND SERVING
+// ======================================================================
+// 1. Serve all static files (css, js, icons) from the root directory
+app.use(express.static(path.join(__dirname, '../')));
+
+// 2. Serve index.html when the user visits the root URL
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../index.html'));
+});
 
 // ======================================================================
 // API ENDPOINT
