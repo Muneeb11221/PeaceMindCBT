@@ -311,7 +311,7 @@ async function generateWithOpenRouter(history) {
             "X-Title": "PeaceMind AI"
         },
         body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free",
+            model: process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free",
             messages: messages,
             max_tokens: 500,
             temperature: 0.6
