@@ -287,6 +287,12 @@ Do not weaponize memory or sound surveillance-oriented.
 - Maintain professionalism without sounding sterile.
 - Be psychologically insightful without pretending certainty.`;
 
+// Logger middleware to help debug connectivity and CORS
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url} from ${req.headers.origin || 'No Origin'}`);
+    next();
+});
+
 // ======================================================================
 // API ENDPOINT
 // ======================================================================
@@ -309,8 +315,11 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
         }
 
         // 3. AI Generation
+        // Use gemini-1.5-flash as the primary stable model for now, 
+        // fallback logic can be added here if needed.
+        const modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: modelName,
             systemInstruction: FULL_SYSTEM_PROMPT,
         });
 
@@ -332,8 +341,17 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
 
     } catch (error) {
         console.error("AI Error:", error.message || error);
+        
+        // Provide more descriptive error messages to the client
+        let errorMessage = "Something went wrong while processing your request.";
+        if (error.message && error.message.includes("API key")) {
+            errorMessage = "Invalid API Key. Please check your .env configuration.";
+        } else if (error.message && error.message.includes("model")) {
+            errorMessage = `Model Error: ${error.message}`;
+        }
+        
         res.status(500).json({
-            error: "Something went wrong while processing your request."
+            error: errorMessage
         });
     }
 });

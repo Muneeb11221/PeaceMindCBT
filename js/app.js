@@ -201,9 +201,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       document.getElementById(loadingId)?.remove();
       
-      const errorText = navigator.onLine ? 
-        'Something went wrong. Please check your connection and try again.' : 
-        'You appear to be offline. Please reconnect to continue.';
+      let errorText = error.message;
+      
+      if (!navigator.onLine) {
+        errorText = 'You appear to be offline. Please reconnect to continue.';
+      } else if (errorText.includes('Failed to fetch') || errorText.includes('NetworkError')) {
+        errorText = 'Connection failed. Ensure the backend server is running on port 3000.';
+      }
       
       const sysMsg = {
         role: 'system',
