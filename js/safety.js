@@ -6,7 +6,7 @@ const SafetyEngine = {
     'kill someone', 'hurt someone', 'murder'
   ],
 
-  CRISIS_MESSAGE: "I am concerned about your safety. Please contact the 988 Suicide & Crisis Lifeline or go to the nearest Emergency Room immediately. You can call or text 988 in the US.",
+  CRISIS_MESSAGE: "I am concerned about your safety. Please contact Umang Pakistan at 0311-7786264, Rozan at 0304-111-1741, or call Emergency Services at 1122 immediately.",
 
   /**
    * Checks a message for crisis keywords.
