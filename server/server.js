@@ -285,46 +285,70 @@ app.use((req, res, next) => {
 
 /**
  * Fallback generator using OpenRouter API
+ * Tries multiple free models in sequence to ensure reliability.
  */
 async function generateWithOpenRouter(history) {
     if (!process.env.OPENROUTER_API_KEY) {
         throw new Error("OpenRouter API key is missing. Cannot fallback.");
     }
 
+    const FALLBACK_MODELS = [
+        "google/gemma-4-26b-a4b-it:free", // Trying the lighter Gemma 4 first
+        "google/gemma-4-31b-it:free",
+        "meta-llama/llama-3.1-8b-instruct:free",
+        "mistralai/mistral-7b-instruct:free"
+    ];
+
     const messages = history.map(msg => ({
-        role: msg.role === 'ai' ? 'assistant' : 'user',
+        role: msg.role === 'ai' ? 'assistant' : (msg.role === 'system' ? 'system' : 'user'),
         content: msg.content
     }));
 
-    // Prepend system prompt
-    messages.unshift({
-        role: 'system',
-        content: FULL_SYSTEM_PROMPT
-    });
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://peacemind-ai-cbt.onrender.com", // Optional, for OpenRouter analytics
-            "X-Title": "PeaceMind AI"
-        },
-        body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free",
-            messages: messages,
-            max_tokens: 500,
-            temperature: 0.6
-        })
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`OpenRouter Error: ${errorData.error?.message || response.statusText}`);
+    // Ensure system prompt is at the start
+    if (!messages.find(m => m.role === 'system')) {
+        messages.unshift({
+            role: 'system',
+            content: FULL_SYSTEM_PROMPT
+        });
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
+    let lastError = null;
+    for (const model of FALLBACK_MODELS) {
+        try {
+            console.log(`Attempting fallback with model: ${model}`);
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://peacemind-ai-cbt.onrender.com",
+                    "X-Title": "PeaceMind AI"
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    max_tokens: 500,
+                    temperature: 0.6
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error(`OpenRouter (${model}) Error:`, JSON.stringify(errorData, null, 2));
+                continue; // Try next model
+            }
+
+            const data = await response.json();
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+                return data.choices[0].message.content;
+            }
+        } catch (err) {
+            console.error(`Failed to reach OpenRouter for ${model}:`, err.message);
+            lastError = err;
+        }
+    }
+
+    throw new Error(lastError ? `All fallback models failed. Last error: ${lastError.message}` : "All fallback models failed.");
 }
 
 // ======================================================================
