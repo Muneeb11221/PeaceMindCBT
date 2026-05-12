@@ -37,22 +37,7 @@ const allowedOrigins = [
   'http://192.168.1.101:5501'
 ].filter(Boolean);
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    
-    const isLocal = origin.includes('localhost') || 
-                    origin.includes('127.0.0.1') || 
-                    origin.startsWith('http://192.168.');
-    
-    if (isLocal || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
-}));
+app.use(cors()); // Temporarily allow all origins for debugging
 
 // Body parser with size limits to prevent oversized payloads
 app.use(express.json({ limit: '10kb' }));
@@ -323,7 +308,7 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
         // 3. AI Generation
         // Use gemini-1.5-flash as the primary stable model for now, 
         // fallback logic can be added here if needed.
-        const modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+        const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
         const model = genAI.getGenerativeModel({
             model: modelName,
             systemInstruction: FULL_SYSTEM_PROMPT,
@@ -365,7 +350,7 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
 // ======================================================================
 // START SERVER
 // ======================================================================
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

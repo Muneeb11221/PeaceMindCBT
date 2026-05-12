@@ -3,10 +3,8 @@ const AIEngine = {
   CONFIG: {
     // Dynamically determine the API URL based on environment
     get URL() {
-      const isLocal = window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname.startsWith('192.168.1.101');
-      return isLocal ? `http://${window.location.hostname}:3000/ask-ai` : 'https://peacemind-ai-cbt.onrender.com/ask-ai';
+      const isProduction = window.location.hostname.includes('onrender.com');
+      return isProduction ? 'https://peacemind-ai-cbt.onrender.com/ask-ai' : 'http://localhost:3001/ask-ai';
     },
     TIMEOUT_MS: 30000, // 30 second timeout
     MAX_HISTORY_LENGTH: 50 // Guard against oversized payloads
