@@ -390,7 +390,7 @@ app.post('/ask-ai', aiLimiter, async (req, res) => {
 
         // 3. Primary Generation: Google Gemini
         try {
-            const modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+            const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
             const model = genAI.getGenerativeModel({
                 model: modelName,
                 systemInstruction: SYSTEM_PROMPT,
